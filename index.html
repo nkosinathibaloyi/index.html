@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<!--
+  DISPATCH LABEL DASHBOARD  (single-file app: HTML + CSS + JavaScript, no backend, no build step)
+  Deploy on GitHub Pages: save as index.html in a repo, then Settings > Pages > deploy from branch.
+  GitHub Pages serves HTTPS, which Chrome requires for live camera scanning.
+  Libraries (loaded from CDN, internet needed): Chart.js (charts), SheetJS (Excel/CSV), jsQR (QR fallback).
+  Data stays in the browser. Staging assignments are saved in localStorage.
+-->
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="theme-color" content="#0e9aa0">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dispatch Label Dashboard</title>
+<style>
+/* ===== THEME: bright teal/blue, colour tokens in :root; mobile rules at the bottom ===== */
+:root{color-scheme:light;--bg:#eef8f7;--sf:#fff;--ink:#12304a;--mut:#5b7388;--line:#d3e7e6;--ac:#0e9aa0;--ac2:#f59e0b;--bad:#e11d48;--bl:#2563eb;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 "Segoe UI",system-ui,-apple-system,sans-serif}
+h1,.kv{font-family:Georgia,"Times New Roman",serif}
+header{background:linear-gradient(100deg,#0e9aa0,#2563eb);color:#fff;padding:18px 22px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;border-bottom:4px solid var(--ac2)}
+h1{margin:0;font-size:22px}header p{margin:2px 0 0;opacity:.85;font-size:12px}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+button,.up{border:1px solid #fff;background:transparent;color:#fff;padding:8px 14px;border-radius:8px;font:600 13px inherit;cursor:pointer}
+.up{background:#fff;color:#0b6f75}.up input{display:none}
+main{max-width:1280px;margin:0 auto;padding:16px}
+.panel,.card,.kpi{background:var(--sf);border:1px solid var(--line);border-radius:12px;padding:14px}
+.filters{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));margin-bottom:14px}
+h3{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mut)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;max-height:84px;overflow:auto}
+.chip{padding:4px 10px;border-radius:99px;border:1px solid var(--line);background:transparent;color:var(--ink);font:500 12px inherit;cursor:pointer}
+.chip.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.dates{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+input[type=date]{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit}
+.kpis{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));margin-bottom:14px}
+.kpi{border-left:5px solid var(--ac)}.kpi:nth-child(even){border-left-color:var(--ac2)}
+.kl{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mut)}
+.kv{font-size:30px;font-weight:700;margin-top:4px}.ks{font-size:12px;color:var(--mut)}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(12,1fr)}
+.card{grid-column:span 6;min-width:0}.card.w{grid-column:span 12}.card.t{grid-column:span 4}.card.e{grid-column:span 8}
+.box{position:relative;height:280px}
+#msg{font-size:12px;color:var(--mut);margin:0 0 12px}
+#sp[hidden]{display:none}#sp{margin-bottom:14px}
+.sg{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+#v{width:100%;max-height:260px;background:#0b2230;border-radius:10px}
+textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;font:12px monospace;background:var(--bg);color:var(--ink)}
+.ff{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:10px 0}
+.ff label{font-size:11px;color:var(--mut);display:flex;flex-direction:column;gap:2px}
+.ff input{border:1px solid var(--line);border-radius:6px;padding:5px 7px;font:inherit;background:var(--bg);color:var(--ink)}
+.pb{background:var(--ac);border-color:var(--ac);color:#fff}.pb.g2{background:transparent;color:var(--ink);border-color:var(--line)}
+#stg{margin-bottom:14px}.pho{background:transparent;color:var(--ink);border:1px solid var(--line);text-align:center;border-radius:12px;padding:12px;font-size:14px}.cur{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap}
+.sbtns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0}.big{width:100%;padding:16px 10px;font-size:16px;border-radius:12px}.b2{background:var(--ac2);border-color:var(--ac2);color:#3b2400}
+#svw{margin-bottom:8px}#sv{width:100%;max-height:50vh;object-fit:cover;border-radius:12px;background:#0b2230;display:block;margin-bottom:8px}
+.man{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin:8px 0}.man input{border:1px solid var(--line);border-radius:8px;padding:12px;font:inherit;font-size:16px;background:var(--bg);color:var(--ink);min-width:0}
+.cc{border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:8px}.cch{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:4px}.cch span{color:var(--mut);font-size:12px}
+.rg{font-size:13px;padding:3px 0;border-top:1px dashed var(--line)}
+@media(max-width:600px){main{padding:10px}.man{grid-template-columns:1fr}.kpis{grid-template-columns:1fr 1fr}.kv{font-size:22px}.box{height:240px}.chip{padding:8px 12px}header{padding:14px}button,.up{padding:10px 12px}}
+@media(max-width:860px){.card,.card.t,.card.e{grid-column:span 12}}
+</style>
+</head>
+<body>
+<header>
+<div><h1>Dispatch Label Dashboard</h1><p>Parts shipments by dealer, destination, carrier, quantity and weight</p></div>
+<div class="btns">
+<label class="up">Upload Excel / CSV<input type="file" id="file" accept=".xlsx,.xls,.xlsm,.csv"></label>
+<button id="scan">Add new label by scan</button>
+<label class="up">Scan from image<input type="file" id="img" accept="image/*"></label>
+<button id="demo">Load sample data</button>
+<button id="dlx">Download Excel</button>
+<button id="dlc">Download CSV</button>
+<button id="reset">Reset filters</button>
+</div>
+</header>
+<main>
+<p id="msg">Upload your Excel file, or load the sample data to preview.</p>
+<section class="panel" id="stg">
+<h3>Staging area scanner</h3>
+<div class="cur"><div><div class="kl">Current staging area</div><div class="kv" id="cur">Not set</div></div><div class="ks" id="curc"></div></div>
+<div class="sbtns"><button class="pb big" id="bst">1. Scan staging area</button><button class="pb big b2" id="bcs">2. Scan case no.</button></div>
+<div class="sbtns"><label class="up pho">Photo: staging area<input type="file" accept="image/*" capture="environment" id="pst"></label><label class="up pho">Photo: case no.<input type="file" accept="image/*" capture="environment" id="pcs"></label></div>
+<div id="svw" hidden><video id="sv" playsinline muted></video><button class="pb g2" id="bstop">Stop camera</button></div>
+<div class="man"><input id="mst" placeholder="Staging area (type or scan)" autocapitalize="characters"><input id="mcs" placeholder="Case number (type or scan)" inputmode="text"><button class="pb" id="mgo">Assign</button></div>
+<p id="stm" class="ks">Scan the staging area QR code first, then scan each case.</p>
+<h3>Staging areas (tap to view)</h3><div class="chips" id="stch"></div>
+<div id="stl"></div>
+<button class="pb g2" id="bclr" style="margin-top:10px">Clear saved staging</button>
+</section>
+<section class="panel" id="sp" hidden>
+<div class="sg">
+<div><h3>Scanner</h3><video id="v" playsinline muted></video><canvas id="cv" hidden></canvas><p id="sm" class="ks">Point the camera at the QR code.</p></div>
+<div><h3>QR payload (or scan with a handheld scanner / paste, then press Enter)</h3><textarea id="raw" rows="3"></textarea><div class="ff" id="sf"></div>
+<div class="btns"><button class="pb" id="sadd">Add to dashboard</button><button class="pb g2" id="sclose">Close</button></div></div>
+</div></section>
+<section class="filters">
+<div class="panel"><h3>Timeline range</h3><div class="dates"><input type="date" id="d1"><span>to</span><input type="date" id="d2"></div></div>
+<div class="panel"><h3>Dealer</h3><div class="chips" id="c-dealer"></div></div>
+<div class="panel"><h3>Ship to</h3><div class="chips" id="c-ship"></div></div>
+<div class="panel"><h3>Carrier</h3><div class="chips" id="c-carrier"></div></div>
+<div class="panel"><h3>Order type</h3><div class="chips" id="c-otype"></div></div>
+<div class="panel"><h3>Staging area</h3><div class="chips" id="c-stage"></div></div>
+</section>
+<section class="kpis" id="kpis"></section>
+<section class="grid">
+<div class="card w"><h3>Timeline: quantity and weight shipped per day</h3><div class="box"><canvas id="g1"></canvas></div></div>
+<div class="card"><h3>Top 10 destinations by quantity</h3><div class="box"><canvas id="g2"></canvas></div></div>
+<div class="card"><h3>Top 10 parts by quantity</h3><div class="box"><canvas id="g3"></canvas></div></div>
+<div class="card t"><h3>Carrier mix (lines)</h3><div class="box"><canvas id="g4"></canvas></div></div>
+<div class="card e"><h3>Cases and registers by staging area</h3><div class="box"><canvas id="g5"></canvas></div></div>
+</section>
+</main>
+<noscript>This dashboard needs JavaScript enabled.</noscript>
+<!-- External libraries: pinned versions from jsDelivr -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script>
+/* ===== 1. HELPERS AND GLOBAL ERROR HANDLING ===== */
+const $=id=>document.getElementById(id);
+/* Show any uncaught error in the status line instead of failing silently */
+window.addEventListener('error',e=>{const m=$('msg');if(m)m.textContent='Error: '+e.message});
+window.addEventListener('unhandledrejection',e=>{const m=$('msg');if(m)m.textContent='Error: '+(e.reason&&e.reason.message||e.reason)});
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const nf=n=>Math.round(n).toLocaleString();
+/* ===== 2. CONFIG AND STATE ===== */
+/* dims = slicer fields; AL = accepted Excel header names (matched ignoring case, spaces, symbols) */
+const dims=[['stage'],['dealer'],['ship'],['carrier'],['otype']];
+const AL={dealer:['dealer','dealercode','dealerno'],ship:['shipto','destination','consignee'],carrier:['carrier','shipmenttype','carriername'],
+otype:['otype','ordertype','type'],part:['partnumber','partno','part','vwpart'],qty:['quantity','qty'],weight:['weight','weightkg','wt'],
+cs:['caseno','case','casenumber','packageno'],stage:['stagingarea','staging','stagearea','stage','bay','location','area'],register:['register','registerno','regno'],date:['date','shipdate','shippingdate','dispatchdate','created','transactiontime']};
+/* RAW = all rows, F = rows after filters, sel = selected slicer values, ch = chart instances */
+let RAW=[],F=[],sel={},ch={};
+/* Saved staging (case -> staging area) kept in localStorage so a refresh does not lose scans */
+let STG={};try{STG=JSON.parse(localStorage.getItem('stg')||'{}')}catch(e){STG={}}
+const saveStg=()=>{try{localStorage.setItem('stg',JSON.stringify(STG))}catch(e){}};
+const norm=s=>String(s).toLowerCase().replace(/[^a-z0-9]/g,'');
+const dk=d=>d.toISOString().slice(0,10);
+/* ===== 3. PARSING: dates accept Date objects, Excel serials, dd/mm/yy text and ISO text ===== */
+function toDate(v){
+  if(v==null||v==='')return null;
+  if(v instanceof Date)return isNaN(v)?null:v;
+  if(typeof v==='number')return new Date(Math.round((v-25569)*864e5));
+  const m=String(v).trim().match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);
+  if(m){const y=+m[3]<100?2000+ +m[3]:+m[3];return new Date(Date.UTC(y,+m[2]-1,+m[1]))}
+  const d=new Date(v);return isNaN(d)?null:d;
+}
+const g=(o,a)=>{for(const k of a)if(o[k]!==undefined&&o[k]!==null&&o[k]!=='')return o[k];return null};
+const num=v=>{const n=parseFloat(String(v??'').replace(',','.'));return isNaN(n)?0:n};
+/* ===== 4. DATA LOADING: map Excel rows to records, rebuild slicers, render ===== */
+function load(rows,name){
+  RAW=rows.map(r=>{
+    const o={};for(const k in r)o[norm(k)]=r[k];
+    const s=a=>String(g(o,AL[a])??'(blank)');
+    return{dealer:s('dealer'),ship:s('ship'),carrier:s('carrier'),otype:s('otype'),part:s('part'),
+      qty:num(g(o,AL.qty)),wt:num(g(o,AL.weight)),cs:g(o,AL.cs),stage:String(g(o,AL.stage)??'Unassigned'),reg:g(o,AL.register),date:toDate(g(o,AL.date)),raw:r};
+  });
+  /* re-apply saved staging to cases that have no staging area in the file */
+  RAW.forEach(r=>{const s=STG[sk(r.cs)];if(s&&r.stage==='Unassigned'){r.stage=s;r.raw['Staging Area']=s}});
+  const have=new Set(rows.length?Object.keys(rows[0]).map(norm):[]);
+  const miss=Object.keys(AL).filter(k=>!AL[k].some(a=>have.has(a)));
+  $('msg').textContent=name+': '+nf(RAW.length)+' rows loaded.'+(miss.length?' Columns not found: '+miss.join(', ')+'.':'');
+  const ds=RAW.map(r=>r.date).filter(Boolean).sort((a,b)=>a-b);
+  $('d1').value=ds.length?dk(ds[0]):'';$('d2').value=ds.length?dk(ds[ds.length-1]):'';
+  sel={};dims.forEach(([k])=>sel[k]=new Set());buildChips();apply();
+}
+/* ===== 5. SLICERS AND FILTERING ===== */
+function buildChips(){
+  dims.forEach(([k])=>{
+    const vals=[...new Set(RAW.map(r=>r[k]))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+    const box=$('c-'+k);box.innerHTML='';
+    vals.slice(0,60).forEach(v=>{
+      const b=document.createElement('button');b.className='chip'+(sel[k].has(v)?' on':'');b.textContent=v;
+      b.onclick=()=>{sel[k].has(v)?sel[k].delete(v):sel[k].add(v);b.classList.toggle('on');apply()};
+      box.appendChild(b);
+    });
+  });
+}
+function apply(){
+  const a=$('d1').value?new Date($('d1').value):null,b=$('d2').value?new Date($('d2').value+'T23:59:59Z'):null;
+  F=RAW.filter(r=>dims.every(([k])=>!sel[k].size||sel[k].has(r[k]))&&(r.date?((!a||r.date>=a)&&(!b||r.date<=b)):(!a&&!b)));
+  render();
+}
+const sum=(a,f)=>a.reduce((s,r)=>s+f(r),0);
+function group(f){const m={};F.forEach(r=>{const k=f(r);(m[k]=m[k]||[]).push(r)});return m}
+function mk(id,cfg){if(ch[id])ch[id].destroy();ch[id]=new Chart($(id),cfg)}
+function topN(by,n){const m=group(r=>r[by]);return Object.keys(m).map(k=>[k,sum(m[k],r=>r.qty)]).sort((a,b)=>b[1]-a[1]).slice(0,n)}
+/* ===== 6. KPIs AND CHARTS ===== */
+function render(){
+  const n=F.length,cases=new Set(F.map(r=>r.cs).filter(v=>v!=null)).size,parts=new Set(F.map(r=>r.part)).size;
+  const K=[['Shipment lines',nf(n),'label records in selection'],['Total quantity',nf(sum(F,r=>r.qty)),'units shipped'],
+    ['Total weight',sum(F,r=>r.wt).toLocaleString(undefined,{maximumFractionDigits:1})+' kg','gross shipped weight'],
+    ['Unique cases',nf(cases),'distinct case numbers'],['Staged cases',nf(new Set(F.filter(r=>r.stage!=='Unassigned'&&r.cs!=null).map(r=>r.cs)).size)+' / '+nf(cases),'cases with a staging area']];
+  $('kpis').innerHTML=K.map(k=>`<div class="kpi"><div class="kl">${k[0]}</div><div class="kv">${k[1]}</div><div class="ks">${k[2]}</div></div>`).join('');
+  const mut=css('--mut'),line=css('--line'),ac=css('--ac'),ac2=css('--ac2'),bl=css('--bl');
+  const ax=o=>Object.assign({ticks:{color:mut},grid:{color:line}},o||{});
+  const lg={labels:{color:mut}},base={responsive:true,maintainAspectRatio:false};
+  const days=group(r=>r.date?dk(r.date):'n/a');delete days['n/a'];const dl=Object.keys(days).sort();
+  mk('g1',{data:{labels:dl,datasets:[
+    {type:'bar',label:'Quantity',data:dl.map(d=>sum(days[d],r=>r.qty)),backgroundColor:ac,yAxisID:'y'},
+    {type:'line',label:'Weight (kg)',data:dl.map(d=>sum(days[d],r=>r.wt)),borderColor:ac2,backgroundColor:ac2,tension:.3,yAxisID:'y1'}]},
+    options:{...base,plugins:{legend:lg},scales:{x:ax(),y:ax(),y1:ax({position:'right',grid:{display:false}})}}});
+  const hb=(id,t,c)=>mk(id,{type:'bar',data:{labels:t.map(x=>x[0]),datasets:[{label:'Quantity',data:t.map(x=>x[1]),backgroundColor:c}]},
+    options:{...base,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:ax(),y:ax()}}});
+  hb('g2',topN('ship',10),bl);hb('g3',topN('part',10),ac2);
+  const cr=group(r=>r.carrier),cl=Object.keys(cr),pal=[ac,ac2,bl,'#a855f7','#e11d48','#64748b'];
+  mk('g4',{type:'doughnut',data:{labels:cl,datasets:[{data:cl.map(c=>cr[c].length),backgroundColor:cl.map((_,i)=>pal[i%6]),borderColor:css('--sf')}]},
+    options:{...base,plugins:{legend:{position:'bottom',labels:{color:mut}}}}});
+  const sg=group(r=>r.stage),sn=Object.keys(sg).sort();
+  mk('g5',{type:'bar',data:{labels:sn,datasets:[
+    {label:'Cases',data:sn.map(s=>new Set(sg[s].map(r=>r.cs).filter(v=>v!=null)).size),backgroundColor:ac},
+    {label:'Registers',data:sn.map(s=>new Set(sg[s].map(r=>r.reg).filter(v=>v!=null)).size),backgroundColor:ac2}]},
+    options:{...base,plugins:{legend:lg},scales:{x:ax(),y:ax()}}});
+  renderStage();
+}
+/* ===== 7. EXCEL / CSV UPLOAD (first sheet is read) ===== */
+$('file').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=ev=>{try{const wb=XLSX.read(ev.target.result,{type:'array',cellDates:true});
+    load(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:null}),f.name)}
+    catch(err){$('msg').textContent='Could not read that file: '+err.message}};
+  rd.readAsArrayBuffer(f);
+};
+$('d1').onchange=$('d2').onchange=apply;
+$('reset').onclick=()=>{if(RAW.length)load(RAW.map(r=>r.raw),'Data')};
+/* ===== 8. DOWNLOADS (filtered rows as Excel or CSV) ===== */
+function save(name,blob){
+  try{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500)}
+  catch(e){$('msg').textContent='Download failed: '+e.message}
+}
+function rowsSheet(){
+  if(!F.length){$('msg').textContent='Nothing to download: the current selection has no rows.';return null}
+  return XLSX.utils.json_to_sheet(F.map(r=>r.raw),{cellDates:true});
+}
+$('dlx').onclick=()=>{
+  const ws=rowsSheet();if(!ws)return;
+  const ks=XLSX.utils.aoa_to_sheet([['KPI','Value'],['Shipment lines',F.length],['Total quantity',sum(F,r=>r.qty)],['Total weight kg',sum(F,r=>r.wt)],
+    ['Unique cases',new Set(F.map(r=>r.cs).filter(v=>v!=null)).size],['Unique parts',new Set(F.map(r=>r.part)).size]]);
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Filtered data');XLSX.utils.book_append_sheet(wb,ks,'KPI summary');
+  save('dispatch_filtered.xlsx',new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array',cellDates:true})],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+};
+$('dlc').onclick=()=>{const ws=rowsSheet();if(ws)save('dispatch_filtered.csv',new Blob([XLSX.utils.sheet_to_csv(ws)],{type:'text/csv'}))};
+/* ===== 9. SAMPLE DATA (so the app works before any upload) ===== */
+$('demo').onclick=()=>{
+  let s=11;const rnd=()=>(s=(s*16807)%2147483647)/2147483647,pk=a=>a[Math.floor(rnd()*a.length)];
+  const ships=['ABALON LOGISTIK','NORDHAFEN GMBH','RHEIN CARGO','ALPEN SPEDITION','BALTIC FREIGHT'];
+  const parts=[['N1WZ 2603100 BM','GLASS WINDSHIELD'],['2HJ 845 099 CA','DOOR GLASS'],['5Q0 807 221 GRU','BUMPER COVER'],['6R0 941 007','HEADLAMP'],['1K0 615 301 AA','BRAKE DISC'],['3C0 857 507','MIRROR'],['04E 115 561 T','OIL FILTER'],['5N0 827 025','TAILGATE']];
+  const rows=[];
+  for(let i=0;i<450;i++){
+    const p=pk(parts),q=1+Math.floor(rnd()*8);
+    rows.push({Dealer:pk(['79319','79320','79411']),'Ship To':pk(ships),Carrier:pk(['EXPORTS - DAILY','EXPORTS - DAILY','EXPORTS - WEEKLY','LOCAL - DAILY']),
+      'O/Type':pk(['1E','1E','2S','3R']),'Part Number':p[0],Quantity:q,Control:'3050.01',Register:805300+i,Item:1+i%4,'Dlr.Locn':'0'+(32000+Math.floor(rnd()*900)),
+      Description:p[1],'Case No':4470000+Math.floor(i/2),'Staging Area':Math.floor(i/2)%7===0?'':'STG-'+'ABC'[Math.floor(i/2)%3]+(1+Math.floor(i/6)%2),Weight:+(q*(2+rnd()*6)).toFixed(1),'Package No':'A0'+(1000+i),Date:new Date(Date.UTC(2026,8,1+Math.floor(rnd()*60)))});
+  }
+  load(rows,'Sample data');
+};
+/* ===== 10. QR SCANNING AND STAGING WORKFLOW ===== */
+/* Flow: scan staging area -> scan cases -> each case is assigned to the current staging area.
+   Live camera uses BarcodeDetector when present (Chrome) and jsQR otherwise; Photo buttons are the fallback. */
+const SF=[['dealer','Dealer'],['ship','Ship to'],['carrier','Carrier'],['otype','Order type'],['part','Part number'],['qty','Quantity'],['weight','Weight (kg)'],['cs','Case no'],['date','Date']];
+$('sf').innerHTML=SF.map(f=>`<label>${f[1]}<input id="f-${f[0]}" ${f[0]==='date'?'type="date"':''}></label>`).join('');
+let stream=null,raf=0;const det=('BarcodeDetector' in window)?new BarcodeDetector({formats:['qr_code','data_matrix']}):null;
+async function decode(src,w,h){
+  const c=$('cv'),x=c.getContext('2d',{willReadFrequently:true});c.width=w;c.height=h;x.drawImage(src,0,0,w,h);
+  if(det){try{const r=await det.detect(c);if(r.length)return r[0].rawValue}catch(e){}}
+  if(window.jsQR){const q=jsQR(x.getImageData(0,0,w,h).data,w,h,{inversionAttempts:'attemptBoth'});if(q)return q.data}
+  return null;
+}
+function stopCam(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}cancelAnimationFrame(raf);$('v').srcObject=null}
+async function tick(){
+  if(!stream)return;const v=$('v');
+  if(v.readyState>=2&&v.videoWidth){const t=await decode(v,v.videoWidth,v.videoHeight);if(t){stopCam();got(t);return}}
+  raf=requestAnimationFrame(tick);
+}
+async function startCam(){
+  $('sp').hidden=false;$('sm').textContent='Starting camera...';
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});$('v').srcObject=stream;await $('v').play();$('sm').textContent='Point the camera at the QR code.';tick()}
+  catch(e){$('sm').textContent='Camera is not available here. Use Scan from image, type or scan the text into the box, or open the downloaded HTML file in your browser.'}
+}
+function parsePayload(t){
+  const kv={};let o=null;try{o=JSON.parse(t)}catch(e){}
+  if(o&&typeof o==='object')for(const k in o)kv[norm(k)]=o[k];
+  else t.split(/[\r\n|;,\t]+/).forEach(p=>{const m=p.match(/^\s*([^:=]+?)\s*[:=]\s*(.+?)\s*$/);if(m)kv[norm(m[1])]=m[2]});
+  const out={};SF.forEach(([k])=>{const v=g(kv,AL[k]);if(v!=null)out[k]=v});return out;
+}
+function got(t){
+  $('sp').hidden=false;$('raw').value=t;const p=parsePayload(t);
+  SF.forEach(([k])=>{let v=p[k]??'';if(k==='date'){const d=toDate(v);v=dk(d||new Date())}$('f-'+k).value=v});
+  const n=Object.keys(p).length;
+  $('sm').textContent=n?'QR read: '+n+' fields recognised. Check them, then add.':'QR read, but it has no recognisable field names. Fill in the fields, then add.';
+}
+$('scan').onclick=()=>{stopStg();startCam()};
+$('sclose').onclick=()=>{stopCam();$('sp').hidden=true};
+$('raw').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();const t=$('raw').value.trim();if(t)got(t)}};
+$('img').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;$('sp').hidden=false;$('sm').textContent='Reading image...';
+  try{const bm=await createImageBitmap(f),sc=Math.min(1,2200/Math.max(bm.width,bm.height));
+    const t=await decode(bm,Math.round(bm.width*sc),Math.round(bm.height*sc));
+    if(t)got(t);else $('sm').textContent='No QR code found. Try a closer, sharper photo of just the QR code.';
+  }catch(err){$('sm').textContent='Could not read that image.'}
+  e.target.value='';
+};
+$('sadd').onclick=()=>{
+  const t=$('raw').value.trim(),v=k=>$('f-'+k).value.trim();
+  if(t&&RAW.some(r=>r.raw['QR Payload']===t)){$('sm').textContent='This label was already added.';return}
+  if(!v('part')&&!v('cs')){$('sm').textContent='Enter at least a part number or a case number.';return}
+  const row={Dealer:v('dealer'),'Ship To':v('ship'),Carrier:v('carrier'),'O/Type':v('otype'),'Part Number':v('part'),Quantity:num(v('qty')),Weight:num(v('weight')),'Case No':v('cs'),Date:new Date(v('date')+'T00:00:00Z'),'QR Payload':t,Source:'Scan'};
+  const rows=RAW.map(r=>r.raw);rows.push(row);load(rows,'Data');
+  $('msg').textContent='Label added. The dataset now has '+nf(RAW.length)+' rows.';
+  $('raw').value='';SF.forEach(([k])=>{if(k!=='date')$('f-'+k).value=''});$('sm').textContent='Added. Scan the next label.';
+};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const sk=v=>String(v??'').trim().toUpperCase();
+let cur=null,view=null,smode='stage',sstream=null,sraf=0,lastv='',lastt=0;
+function stm(msg,ok){$('stm').textContent=msg;if(ok&&navigator.vibrate)navigator.vibrate(60)}
+function kvOf(t){const kv={};let o=null;try{o=JSON.parse(t)}catch(e){}
+  if(o&&typeof o==='object')for(const k in o)kv[norm(k)]=o[k];
+  else t.split(/[\r\n|;,\t]+/).forEach(p=>{const m=p.match(/^\s*([^:=]+?)\s*[:=]\s*(.+?)\s*$/);if(m)kv[norm(m[1])]=m[2]});
+  return kv}
+function stopStg(){if(sstream){sstream.getTracks().forEach(t=>t.stop());sstream=null}clearTimeout(sraf);$('sv').srcObject=null;$('svw').hidden=true}
+async function startStg(mode){
+  stopCam();smode=mode;$('svw').hidden=false;
+  if(!sstream){
+    try{
+      if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('nomedia');
+      try{sstream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}},audio:false})}
+      catch(e1){if(e1&&e1.name==='NotAllowedError')throw e1;sstream=await navigator.mediaDevices.getUserMedia({video:true,audio:false})}
+      const v=$('sv');v.setAttribute('playsinline','');v.muted=true;v.srcObject=sstream;await v.play();stick();
+    }catch(e){stopStg();stm((e&&e.name==='NotAllowedError'?'Camera blocked. Allow the camera for this site in Chrome (lock icon, Permissions), or open this page in Chrome itself, not inside another app. ':'Live camera is not available here. ')+'Use the Photo buttons instead.');return}
+  }
+  stm(mode==='stage'?'Scan the staging area QR code.':'Scan a case. Keep scanning to add more.');
+}
+async function stick(){
+  if(!sstream)return;const v=$('sv');
+  if(v.readyState>=2&&v.videoWidth){const sc=Math.min(1,1000/v.videoWidth),t=await decode(v,Math.round(v.videoWidth*sc),Math.round(v.videoHeight*sc));
+    if(t&&(t!==lastv||Date.now()-lastt>2500)){lastv=t;lastt=Date.now();smode==='stage'?setStage(t):assignCase(t)}}
+  sraf=setTimeout(stick,160);
+}
+function setStage(t){
+  const name=String(g(kvOf(t),AL.stage)??t).trim();if(!name)return;
+  cur=name;view=name;smode='case';renderStage();stm('Staging area set to '+name+'. Now scan the cases.',true);
+}
+function assignCase(t){
+  if(!cur){stm('Scan or enter a staging area first.');return}
+  let c=g(kvOf(t),AL.cs);
+  if(c==null){const up=sk(t),hit=[...new Set(RAW.map(r=>r.cs).filter(v=>v!=null))].find(v=>up.includes(sk(v)));c=hit??t.trim()}
+  const rows=RAW.filter(r=>sk(r.cs)===sk(c));
+  if(rows.length){
+    rows.forEach(r=>{r.stage=cur;r.raw['Staging Area']=cur});
+    STG[sk(c)]=cur;saveStg();
+    const regs=new Set(rows.map(r=>r.reg).filter(v=>v!=null)).size;
+    buildChips();apply();stm('Case '+c+' staged at '+cur+' ('+regs+' registers).',true);
+  }else{
+    STG[sk(c)]=cur;saveStg();
+    const all=RAW.map(r=>r.raw);all.push({'Case No':String(c).trim(),'Staging Area':cur,Date:new Date(),Source:'Scan'});
+    load(all,'Data');view=cur;renderStage();stm('Case '+c+' was not in the data. Added at '+cur+' with no register.',true);
+  }
+}
+/* List every case and register for the selected staging area */
+function renderStage(){
+  const by={};RAW.forEach(r=>(by[r.stage]=by[r.stage]||[]).push(r));
+  const names=Object.keys(by).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+  $('cur').textContent=cur||'Not set';
+  const box=$('stch');box.innerHTML='';
+  names.forEach(n=>{const k=new Set(by[n].map(r=>r.cs).filter(v=>v!=null)).size,b=document.createElement('button');
+    b.className='chip'+(n===view?' on':'');b.textContent=n+' ('+k+')';b.onclick=()=>{view=n;renderStage()};box.appendChild(b)});
+  const rows=by[view]||[],cm={};rows.forEach(r=>{const k=String(r.cs??'(no case)');(cm[k]=cm[k]||[]).push(r)});
+  const ck=Object.keys(cm).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})),regs=new Set(rows.map(r=>r.reg).filter(v=>v!=null)).size;
+  $('curc').textContent=view?'Viewing '+view+': '+ck.length+' cases, '+regs+' registers':'';
+  $('stl').innerHTML=!view?'<p class="ks">Pick a staging area above, or scan one.</p>':ck.slice(0,150).map(c=>{const a=cm[c];
+    return `<div class="cc"><div class="cch"><b>Case ${esc(c)}</b><span>${nf(sum(a,r=>r.qty))} units, ${sum(a,r=>r.wt).toFixed(1)} kg</span></div>`+
+    a.map(r=>`<div class="rg">Register ${esc(r.reg??'-')} | ${esc(r.part)} | qty ${nf(r.qty)}</div>`).join('')+'</div>'}).join('')+(ck.length>150?'<p class="ks">Showing 150 of '+ck.length+' cases.</p>':'');
+}
+async function photo(e,mode){
+  const f=e.target.files[0];e.target.value='';if(!f)return;
+  stm('Reading photo...');
+  try{const bm=await createImageBitmap(f);let t=null;
+    for(const m of [2200,1400,900]){const sc=Math.min(1,m/Math.max(bm.width,bm.height));t=await decode(bm,Math.round(bm.width*sc),Math.round(bm.height*sc));if(t)break}
+    if(!t){stm('No QR code found. Move closer so the QR code fills about half the photo, hold steady, and try again.');return}
+    mode==='stage'?setStage(t):assignCase(t);
+  }catch(err){stm('Could not read that photo.')}
+}
+$('pst').onchange=e=>photo(e,'stage');$('pcs').onchange=e=>photo(e,'case');
+$('bst').onclick=()=>startStg('stage');$('bcs').onclick=()=>startStg('case');$('bstop').onclick=stopStg;
+function manual(){const s=$('mst').value.trim(),c=$('mcs').value.trim();if(s)setStage(s);if(c)assignCase(c);$('mst').value='';$('mcs').value=''}
+$('mgo').onclick=manual;$('mst').onkeydown=$('mcs').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();manual()}};
+$('bclr').onclick=()=>{if(confirm('Clear all saved staging assignments and reload?')){try{localStorage.removeItem('stg')}catch(e){}location.reload()}};
+
+/* ===== 11. START: check libraries loaded, then show sample data ===== */
+if(typeof Chart==='undefined'||typeof XLSX==='undefined'){
+  $('msg').textContent='Could not load the chart or Excel libraries. Check your internet connection and reload the page.';
+}else{$('demo').click()}
+</script>
+</body>
+</html>
